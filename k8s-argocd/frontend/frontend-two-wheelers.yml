@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/CloudTechDevOps/kubernetes-veeraops-ecommerce-microservices-app.git
+    repoURL: https://github.com/hpragada/ShopSphere-Cloud-Native-Microservices-E-Commerce-Platform
     path: frontend/two-wheelers
     targetRevision: main
   destination:
