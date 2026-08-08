@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@v4
 
       # -------------------------
-      # AWS Credentials
+      # Configure AWS Credentials
       # -------------------------
       - name: 🔧 Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -49,13 +49,17 @@ jobs:
           aws sts get-caller-identity
 
       # -------------------------
-      # ECR Login
+      # Login to Amazon ECR
       # -------------------------
       - name: 📦 Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
+        run: |
+          aws ecr get-login-password --region "$AWS_REGION" | \
+          docker login \
+            --username AWS \
+            --password-stdin "$ECR_REGISTRY"
 
       # -------------------------
-      # Build & Push Images
+      # Build & Push Docker Images
       # -------------------------
       - name: 🛠 Build and Push Docker Images
         run: |
@@ -63,8 +67,14 @@ jobs:
 
           IMAGE_TAG="${GITHUB_SHA}"
 
+          echo "======================================"
+          echo "AWS Region: $AWS_REGION"
+          echo "ECR Registry: $ECR_REGISTRY"
+          echo "Image Tag: $IMAGE_TAG"
+          echo "======================================"
+
           # -------------------------
-          # Frontend
+          # Frontend Services
           # -------------------------
           for service in $FRONTEND_SERVICES; do
 
@@ -77,8 +87,14 @@ jobs:
               continue
             fi
 
-            echo "🚀 Building $service"
+            echo ""
+            echo "======================================"
+            echo "🚀 Building frontend: $service"
+            echo "📁 Folder: $FOLDER"
+            echo "📦 Repository: $REPO_NAME"
+            echo "======================================"
 
+            # Create ECR repository if it doesn't exist
             aws ecr describe-repositories \
               --repository-names "$REPO_NAME" \
               --region "$AWS_REGION" \
@@ -88,12 +104,15 @@ jobs:
               --region "$AWS_REGION" \
               --image-scanning-configuration scanOnPush=true
 
+            # Build Docker image
             docker build \
               -t "$IMAGE_URI" \
               "$FOLDER"
 
+            # Push Docker image to ECR
             docker push "$IMAGE_URI"
 
+            # Update Kubernetes deployment
             if [ -f "$FOLDER/deployment.yml" ]; then
               sed -i "s|image:.*|image: $IMAGE_URI|g" \
                 "$FOLDER/deployment.yml"
@@ -108,8 +127,14 @@ jobs:
           REPO_NAME="shopping-site-backend"
           IMAGE_URI="$ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG"
 
+          echo ""
+          echo "======================================"
           echo "🚀 Building backend"
+          echo "📁 Folder: $FOLDER"
+          echo "📦 Repository: $REPO_NAME"
+          echo "======================================"
 
+          # Create backend ECR repository if it doesn't exist
           aws ecr describe-repositories \
             --repository-names "$REPO_NAME" \
             --region "$AWS_REGION" \
@@ -119,12 +144,15 @@ jobs:
             --region "$AWS_REGION" \
             --image-scanning-configuration scanOnPush=true
 
+          # Build backend image
           docker build \
             -t "$IMAGE_URI" \
             "$FOLDER"
 
+          # Push backend image
           docker push "$IMAGE_URI"
 
+          # Update Kubernetes deployment
           if [ -f "$FOLDER/backend-deployment.yml" ]; then
             sed -i "s|image:.*|image: $IMAGE_URI|g" \
               "$FOLDER/backend-deployment.yml"
